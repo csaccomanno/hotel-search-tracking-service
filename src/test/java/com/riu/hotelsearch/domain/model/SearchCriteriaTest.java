@@ -20,11 +20,12 @@ class SearchCriteriaTest {
 
         SearchCriteria criteria = new SearchCriteria(" 1234aBc ", CHECK_IN, CHECK_OUT, sourceAges);
         sourceAges.add(99);
+        List<Integer> immutableAges = criteria.ages();
 
         assertAll(
                 () -> assertEquals("1234aBc", criteria.hotelId()),
-                () -> assertEquals(List.of(30, 29, 1, 3), criteria.ages()),
-                () -> assertThrows(UnsupportedOperationException.class, () -> criteria.ages().add(5)));
+                () -> assertEquals(List.of(30, 29, 1, 3), immutableAges),
+                () -> assertThrows(UnsupportedOperationException.class, () -> immutableAges.add(5)));
     }
 
     @Test
@@ -40,6 +41,7 @@ class SearchCriteriaTest {
         assertAll(
                 () -> assertInvalid(() -> new SearchCriteria(null, CHECK_IN, CHECK_OUT, List.of(1))),
                 () -> assertInvalid(() -> new SearchCriteria(" ", CHECK_IN, CHECK_OUT, List.of(1))),
+                () -> assertInvalid(() -> new SearchCriteria("h".repeat(101), CHECK_IN, CHECK_OUT, List.of(1))),
                 () -> assertInvalid(() -> new SearchCriteria("hotel", null, CHECK_OUT, List.of(1))),
                 () -> assertInvalid(() -> new SearchCriteria("hotel", CHECK_IN, null, List.of(1))),
                 () -> assertInvalid(() -> new SearchCriteria("hotel", CHECK_OUT, CHECK_IN, List.of(1))),
@@ -64,4 +66,3 @@ class SearchCriteriaTest {
         assertThrows(DomainValidationException.class, constructor::run);
     }
 }
-

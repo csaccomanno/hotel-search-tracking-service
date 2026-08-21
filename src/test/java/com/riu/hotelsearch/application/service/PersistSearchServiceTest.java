@@ -1,8 +1,9 @@
 package com.riu.hotelsearch.application.service;
 
-import com.riu.hotelsearch.application.port.out.SearchRepository;
 import com.riu.hotelsearch.domain.model.HotelSearch;
 import com.riu.hotelsearch.domain.model.SearchCriteria;
+import com.riu.hotelsearch.domain.model.SearchCountResult;
+import com.riu.hotelsearch.domain.port.out.SearchRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -20,9 +21,9 @@ class PersistSearchServiceTest {
         PersistSearchService service = new PersistSearchService(repository);
         HotelSearch search = search();
 
-        service.persist(search);
+        service.persistAll(List.of(search));
 
-        assertEquals(search, repository.saved);
+        assertEquals(List.of(search), repository.saved);
     }
 
     private HotelSearch search() {
@@ -31,18 +32,14 @@ class PersistSearchServiceTest {
     }
 
     private static final class CapturingRepository implements SearchRepository {
-        private HotelSearch saved;
+        private List<HotelSearch> saved;
 
-        public void saveIfAbsent(HotelSearch search) {
-            saved = search;
+        public void saveAllIfAbsent(List<HotelSearch> searches) {
+            saved = searches;
         }
 
-        public Optional<HotelSearch> findById(UUID searchId) {
+        public Optional<SearchCountResult> findCountById(UUID searchId) {
             return Optional.empty();
-        }
-
-        public long countMatching(SearchCriteria criteria) {
-            return 0;
         }
     }
 }

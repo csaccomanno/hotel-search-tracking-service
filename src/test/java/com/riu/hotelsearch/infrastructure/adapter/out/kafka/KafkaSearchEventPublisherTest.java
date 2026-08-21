@@ -2,6 +2,7 @@ package com.riu.hotelsearch.infrastructure.adapter.out.kafka;
 
 import com.riu.hotelsearch.domain.model.HotelSearch;
 import com.riu.hotelsearch.domain.model.SearchCriteria;
+import com.riu.hotelsearch.infrastructure.messaging.kafka.SearchEventMessage;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -16,8 +17,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class KafkaSearchEventPublisherTest {
@@ -28,10 +27,11 @@ class KafkaSearchEventPublisherTest {
         SearchEventMessage message = new SearchEventMessage(
                 "hotel", LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 12), sourceAges);
         sourceAges.add(99);
+        List<Integer> immutableAges = message.ages();
 
         assertAll(
-                () -> assertEquals(List.of(30, 1), message.ages()),
-                () -> assertThrows(UnsupportedOperationException.class, () -> message.ages().add(5)));
+                () -> assertEquals(List.of(30, 1), immutableAges),
+                () -> assertThrows(UnsupportedOperationException.class, () -> immutableAges.add(5)));
     }
 
     @Test

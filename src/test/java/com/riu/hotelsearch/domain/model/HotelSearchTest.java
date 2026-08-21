@@ -26,10 +26,12 @@ class HotelSearchTest {
 
     @Test
     void rejectsNullValues() {
+        UUID searchId = UUID.randomUUID();
+
         assertAll(
                 () -> assertThrows(DomainValidationException.class,
                         () -> new HotelSearch(null, criteria)),
                 () -> assertThrows(NullPointerException.class,
-                        () -> new HotelSearch(UUID.randomUUID(), null)));
+                        () -> new HotelSearch(searchId, null)));
     }
 }

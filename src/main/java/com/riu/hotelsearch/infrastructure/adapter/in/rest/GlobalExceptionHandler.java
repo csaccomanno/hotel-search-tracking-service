@@ -3,7 +3,6 @@ package com.riu.hotelsearch.infrastructure.adapter.in.rest;
 import com.riu.hotelsearch.application.exception.SearchNotFoundException;
 import com.riu.hotelsearch.domain.exception.DomainValidationException;
 import com.riu.hotelsearch.infrastructure.adapter.in.rest.dto.ApiErrorResponse;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,7 +13,6 @@ import java.time.Instant;
 import java.util.List;
 
 @RestControllerAdvice
-@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -37,7 +35,6 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiErrorResponse> response(HttpStatus status, List<String> messages) {
-        log.warn("Request rejected status={} errorType={}", status.value(), status.name());
         return ResponseEntity.status(status).body(new ApiErrorResponse(
                 Instant.now(), status.value(), status.getReasonPhrase(), messages));
     }

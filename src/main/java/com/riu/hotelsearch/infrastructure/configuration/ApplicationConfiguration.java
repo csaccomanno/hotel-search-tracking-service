@@ -4,21 +4,27 @@ import com.riu.hotelsearch.application.port.in.CountSearchesUseCase;
 import com.riu.hotelsearch.application.port.in.PersistSearchUseCase;
 import com.riu.hotelsearch.application.port.in.RegisterSearchUseCase;
 import com.riu.hotelsearch.application.port.out.SearchEventPublisher;
-import com.riu.hotelsearch.application.port.out.SearchRepository;
 import com.riu.hotelsearch.application.service.CountSearchesService;
 import com.riu.hotelsearch.application.service.PersistSearchService;
 import com.riu.hotelsearch.application.service.RegisterSearchService;
+import com.riu.hotelsearch.domain.port.out.SearchRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Clock;
 import java.util.UUID;
 
 @Configuration(proxyBeanMethods = false)
 public class ApplicationConfiguration {
 
     @Bean
-    RegisterSearchUseCase registerSearchUseCase(SearchEventPublisher publisher) {
-        return new RegisterSearchService(publisher, UUID::randomUUID);
+    Clock clock() {
+        return Clock.systemUTC();
+    }
+
+    @Bean
+    RegisterSearchUseCase registerSearchUseCase(SearchEventPublisher publisher, Clock clock) {
+        return new RegisterSearchService(publisher, UUID::randomUUID, clock);
     }
 
     @Bean

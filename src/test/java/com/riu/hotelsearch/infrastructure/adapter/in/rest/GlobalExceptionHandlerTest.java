@@ -27,12 +27,13 @@ class GlobalExceptionHandlerTest {
         ResponseEntity<ApiErrorResponse> missing = handler.handleNotFound(
                 new SearchNotFoundException(UUID.fromString("e36b5a1e-0bce-4a35-b7ea-316928d51f09")));
         ApiErrorResponse badBody = Objects.requireNonNull(bad.getBody());
+        List<String> messages = badBody.messages();
 
         assertAll(
                 () -> assertEquals(400, bad.getStatusCode().value()),
-                () -> assertEquals(List.of("invalid dates"), badBody.messages()),
+                () -> assertEquals(List.of("invalid dates"), messages),
                 () -> assertThrows(UnsupportedOperationException.class,
-                        () -> badBody.messages().add("another error")),
+                        () -> messages.add("another error")),
                 () -> assertEquals(404, missing.getStatusCode().value()));
     }
 
@@ -42,9 +43,7 @@ class GlobalExceptionHandlerTest {
         BeanPropertyBindingResult binding = new BeanPropertyBindingResult(target, "request");
         binding.rejectValue("hotelId", "blank", "hotelId must not be blank");
         binding.rejectValue("hotelId", "blank-again", "hotelId must not be blank");
-        Method method = HotelSearchController.class.getMethod("register", SearchRequest.class);
-        MethodArgumentNotValidException exception = new MethodArgumentNotValidException(
-                new org.springframework.core.MethodParameter(method, 0), binding);
+        MethodArgumentNotValidException exception = validationException(binding);
 
         ResponseEntity<ApiErrorResponse> response = handler.handleBeanValidation(exception);
         ApiErrorResponse responseBody = Objects.requireNonNull(response.getBody());
@@ -52,5 +51,12 @@ class GlobalExceptionHandlerTest {
         assertAll(
                 () -> assertEquals(400, response.getStatusCode().value()),
                 () -> assertEquals(1, responseBody.messages().size()));
+    }
+
+    private MethodArgumentNotValidException validationException(BeanPropertyBindingResult binding)
+            throws NoSuchMethodException {
+        Method method = HotelSearchController.class.getMethod("register", SearchRequest.class);
+        return new MethodArgumentNotValidException(
+                new org.springframework.core.MethodParameter(method, 0), binding);
     }
 }

@@ -31,10 +31,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@hotel-search-kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     ports:
@@ -63,9 +60,7 @@ services:
 
   hotel-search-api:
     container_name: hotel-search-api
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     environment:
       ORACLE_JDBC_URL: jdbc:oracle:thin:@hotel-search-oracle:1521/FREEPDB1
       ORACLE_APP_USER: ${ORACLE_APP_USER}

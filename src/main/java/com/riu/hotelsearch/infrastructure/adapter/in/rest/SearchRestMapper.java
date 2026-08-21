@@ -1,7 +1,7 @@
 package com.riu.hotelsearch.infrastructure.adapter.in.rest;
 
-import com.riu.hotelsearch.application.model.SearchCountResult;
 import com.riu.hotelsearch.domain.exception.DomainValidationException;
+import com.riu.hotelsearch.domain.model.SearchCountResult;
 import com.riu.hotelsearch.domain.model.SearchCriteria;
 import com.riu.hotelsearch.infrastructure.adapter.in.rest.dto.SearchCountResponse;
 import com.riu.hotelsearch.infrastructure.adapter.in.rest.dto.SearchDetailsResponse;
@@ -22,9 +22,10 @@ final class SearchRestMapper {
     }
 
     static SearchCriteria toDomain(SearchRequest request) {
+        LocalDate checkIn = parseDate(request.checkIn(), "checkIn");
         return new SearchCriteria(
                 request.hotelId(),
-                parseDate(request.checkIn(), "checkIn"),
+                checkIn,
                 parseDate(request.checkOut(), "checkOut"),
                 request.ages());
     }

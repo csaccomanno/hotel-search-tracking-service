@@ -1,4 +1,4 @@
-package com.riu.hotelsearch.infrastructure.adapter.out.kafka;
+package com.riu.hotelsearch.infrastructure.messaging.kafka;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 

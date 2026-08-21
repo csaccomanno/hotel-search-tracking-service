@@ -3,32 +3,33 @@ package com.riu.hotelsearch.infrastructure.adapter.in.kafka;
 import com.riu.hotelsearch.application.port.in.PersistSearchUseCase;
 import com.riu.hotelsearch.domain.model.HotelSearch;
 import com.riu.hotelsearch.domain.model.SearchCriteria;
-import com.riu.hotelsearch.infrastructure.adapter.out.kafka.SearchEventMessage;
+import com.riu.hotelsearch.infrastructure.messaging.kafka.SearchEventMessage;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.UUID;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
 public class KafkaSearchEventConsumer {
 
     private final PersistSearchUseCase persistSearchUseCase;
 
-    @KafkaListener(topics = "${app.kafka.topic}", groupId = "${spring.kafka.consumer.group-id}")
-    public void consume(
-            SearchEventMessage message,
-            @Header(KafkaHeaders.RECEIVED_KEY) String searchId) {
-        log.info("Hotel search event received searchId={} virtualThread={}",
-                searchId, Thread.currentThread().isVirtual());
+    @KafkaListener(topics = "${app.kafka.topic}")
+    public void consume(List<ConsumerRecord<String, SearchEventMessage>> records) {
+        List<HotelSearch> searches = records.stream()
+                .map(this::toDomain)
+                .toList();
+        persistSearchUseCase.persistAll(searches);
+    }
+
+    private HotelSearch toDomain(ConsumerRecord<String, SearchEventMessage> record) {
+        SearchEventMessage message = record.value();
         SearchCriteria criteria = new SearchCriteria(
                 message.hotelId(), message.checkIn(), message.checkOut(), message.ages());
-        persistSearchUseCase.persist(new HotelSearch(UUID.fromString(searchId), criteria));
-        log.info("Hotel search persisted searchId={}", searchId);
+        return new HotelSearch(UUID.fromString(record.key()), criteria);
     }
 }

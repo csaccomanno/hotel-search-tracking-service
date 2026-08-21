@@ -15,6 +15,9 @@ public record SearchCriteria(
         if (hotelId == null || hotelId.isBlank()) {
             throw new DomainValidationException("hotelId must not be blank");
         }
+        if (hotelId.trim().length() > 100) {
+            throw new DomainValidationException("hotelId must contain at most 100 characters");
+        }
         if (checkIn == null) {
             throw new DomainValidationException("checkIn must not be null");
         }
@@ -35,4 +38,3 @@ public record SearchCriteria(
         ages = List.copyOf(ages);
     }
 }
-

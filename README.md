@@ -56,7 +56,7 @@ Health check:
 http://localhost:8080/actuator/health
 ```
 
-Las URLs anteriores utilizan los puertos predeterminados de `.env.example`. Si se modifica algún puerto en `.env`, también debe ajustarse la URL correspondiente.
+Las URL anteriores utilizan los puertos predeterminados de `.env.example`. Si se modifica algún puerto en `.env`, también debe ajustarse la dirección correspondiente.
 
 ## Cómo probar la API desde Swagger
 
@@ -73,7 +73,7 @@ Abrir Swagger UI, desplegar `POST /search`, seleccionar `Try it out` y utilizar 
 }
 ```
 
-La API responde con estado HTTP `202 Accepted` y un identificador único:
+La API responde con estado HTTP `201 Created` y un identificador único:
 
 ```json
 {
@@ -114,11 +114,11 @@ El orden de las edades forma parte del criterio de igualdad. Por ejemplo, `[30, 
 
 ## Flujo de procesamiento
 
-Cuando la API recibe un POST, valida el payload, lo convierte al modelo de dominio y genera un UUID único. El valor del mensaje de Kafka contiene los cuatro campos recibidos: `hotelId`, `checkIn`, `checkOut` y `ages`; el `searchId` se envía como clave para conservar el payload original.
+Cuando la API recibe un POST, valida el cuerpo de la petición, lo convierte al modelo de dominio y genera un UUID único. El mensaje de Kafka contiene los cuatro campos recibidos: `hotelId`, `checkIn`, `checkOut` y `ages`; el `searchId` se envía como clave para conservar el cuerpo original.
 
-El consumidor recupera el UUID desde la clave, reconstruye la búsqueda y utiliza el mismo identificador como clave primaria en Oracle. Finalmente, el GET localiza la búsqueda por su `searchId` y cuenta todos los registros con el mismo hotel, fechas y edades en el mismo orden.
+El consumidor recupera los UUID desde las claves, reconstruye un lote de búsquedas y lo persiste mediante una única llamada a Oracle. Finalmente, el GET localiza la búsqueda por su `searchId` y cuenta todos los registros con el mismo hotel, fechas y edades en el mismo orden.
 
-El POST devuelve `202 Accepted` porque la publicación en Kafka se completa antes de que el consumidor finalice la persistencia en Oracle.
+El POST devuelve `201 Created` después de confirmar la publicación en Kafka. La persistencia en Oracle continúa de manera asíncrona.
 
 ## Inspeccionar los mensajes de Kafka
 
@@ -130,7 +130,7 @@ Abrir Kafka UI y realizar los siguientes pasos:
 4. Seleccionar `Messages`.
 5. Buscar el `searchId` devuelto por el POST.
 
-El `searchId` aparece como clave. El valor conserva el JSON funcional enviado a la API:
+El `searchId` aparece como clave. El mensaje conserva el JSON funcional enviado a la API:
 
 ```json
 {
@@ -165,27 +165,28 @@ jdbc:oracle:thin:@localhost:1521/FREEPDB1
 
 La aplicación utiliza arquitectura hexagonal sin separar el proyecto en módulos Maven.
 
-El paquete `domain` contiene el modelo y las validaciones de negocio. No depende de Spring, REST, Kafka, JPA ni Oracle.
+El paquete `domain` contiene el modelo, las validaciones de negocio y el puerto de persistencia `SearchRepository`. No depende de Spring, REST, Kafka ni Oracle.
 
-El paquete `application` contiene los casos de uso y los puertos de entrada y salida. Conoce solamente al dominio y define las operaciones que necesita sin depender de implementaciones técnicas.
+El paquete `application` contiene los casos de uso, sus puertos de entrada y el puerto de publicación de eventos. Conoce solamente al dominio y define las operaciones que necesita sin depender de implementaciones técnicas.
 
-El paquete `infrastructure` contiene los adaptadores REST, Kafka y Oracle, además de la configuración que conecta los casos de uso con sus implementaciones.
+El paquete `infrastructure` contiene los adaptadores REST, Kafka y Oracle, el contrato neutral de mensajería y la configuración que conecta los casos de uso con sus implementaciones.
 
-El productor y el consumidor de Kafka están implementados en clases separadas. La dirección de las dependencias se comprueba automáticamente mediante pruebas ArchUnit.
+El productor y el consumidor de Kafka están implementados en clases separadas y dependen de un contrato de mensaje común, sin depender entre sí. ArchUnit comprueba automáticamente la dirección de las capas, la independencia de dominio y aplicación, la separación entre adaptadores de entrada y salida y el uso de los puertos correspondientes.
 
 ## Validaciones e inmutabilidad
 
 La API valida que:
 
-- `hotelId` no sea nulo ni vacío.
+- `hotelId` no sea nulo, vacío ni supere los 100 caracteres admitidos por Oracle.
 - `checkIn` y `checkOut` no sean nulos ni vacíos y respeten el formato `dd/MM/yyyy`.
+- `checkIn` no corresponda a una fecha pasada.
 - `checkIn` sea anterior a `checkOut`.
 - `ages` no sea nulo ni vacío.
 - Cada edad sea distinta de nulo y mayor o igual que cero.
 
-Los errores de validación responden con HTTP `400 Bad Request` y los mensajes correspondientes. Un `searchId` inexistente responde con HTTP `404 Not Found`.
+Los errores de validación responden con HTTP `400 Bad Request` y los mensajes correspondientes. Un `searchId` inexistente o con formato desconocido responde con HTTP `404 Not Found`.
 
-Los contratos REST, los mensajes Kafka y los objetos del dominio utilizan records. Las listas se copian mediante `List.copyOf` para evitar modificaciones desde referencias externas. La entidad JPA mantiene solamente la mutabilidad requerida por Hibernate, no expone setters y está marcada como de solo lectura. Las fechas se convierten una sola vez y se representan internamente mediante `LocalDate`.
+Los contratos REST, los mensajes Kafka y los objetos del dominio utilizan records. Las listas se copian mediante `List.copyOf` para evitar modificaciones desde referencias externas. Las fechas se convierten una sola vez y se representan internamente mediante `LocalDate`.
 
 ## Criterio de igualdad de edades
 
@@ -197,13 +198,19 @@ El hash se almacena en Oracle y forma parte de un índice junto con el hotel y l
 
 Cada petición genera un UUID nuevo. El mismo identificador se utiliza como clave de Kafka y como clave primaria en Oracle. La persistencia es idempotente por `searchId`, por lo que una eventual reentrega del mismo mensaje no crea otro registro.
 
-La transacción ACID se limita a la escritura en Oracle. La comunicación entre la API, Kafka y la base de datos es asíncrona y presenta consistencia eventual.
+El consumidor recibe hasta 250 registros por poll y llama una sola vez al procedimiento `HOTEL_SEARCH_PKG.PERSIST_SEARCH_BATCH`, instalado mediante Flyway. La especificación (`.pks`) y el cuerpo (`.pkb`) se administran como migraciones repetibles, por lo que Flyway vuelve a aplicarlos cuando cambia su definición.
 
-El productor Kafka utiliza confirmación `acks=all` e idempotencia. El tópico tiene tres particiones y el listener mantiene una concurrencia de tres. Los componentes involucrados no almacenan estado mutable compartido.
+El lote se envía como JSON y Oracle lo transforma en filas mediante `JSON_TABLE`. Dos operaciones `INSERT` set-based almacenan las búsquedas y sus edades respetando el orden original. El hint `IGNORE_ROW_ON_DUPKEY_INDEX` utiliza las claves únicas para omitir reentregas sin interrumpir el resto del lote. El procedimiento no realiza `COMMIT` ni `ROLLBACK`.
 
-Los virtual threads de Java 21 están habilitados mediante Spring Boot y se utilizan durante el procesamiento del consumidor Kafka. Los logs informan si el mensaje está siendo procesado por un virtual thread. El pool de Oracle permanece limitado a diez conexiones: los virtual threads reducen el costo de espera de operaciones bloqueantes, pero no aumentan la capacidad de la base de datos.
+La lectura invoca `HOTEL_SEARCH_PKG.FIND_SEARCH_COUNT`, que devuelve un `SYS_REFCURSOR` con la búsqueda, las edades ordenadas como JSON y el total de coincidencias. De esta forma la consulta permanece encapsulada en Oracle y la API mantiene un único acceso a base de datos por GET.
 
-Las consultas a Oracle utilizan parámetros de JPA y no concatenan valores recibidos en sentencias SQL.
+La transacción ACID se limita a la escritura completa de cada lote en Oracle y continúa administrada por Spring. Si la persistencia falla, se revierte el lote, no se confirman sus offsets y Kafka vuelve a entregarlo. Los reintentos no generan duplicados gracias a la idempotencia por `searchId`. La comunicación entre la API, Kafka y la base de datos es asíncrona y presenta consistencia eventual.
+
+El productor Kafka utiliza confirmación `acks=all` e idempotencia. El tópico tiene seis particiones y el listener mantiene seis consumidores concurrentes. Los offsets se confirman por lote únicamente después de completar la transacción Oracle. El pool JDBC admite hasta doce conexiones y mantiene cuatro conexiones inactivas, una configuración acorde con los dos CPU disponibles en Oracle Free.
+
+Los hilos virtuales de Java 21 están habilitados mediante Spring Boot para el procesamiento HTTP y las tareas administradas por su ejecutor. Reducen el costo de espera en operaciones bloqueantes como la confirmación del productor Kafka y las consultas JDBC, pero no reemplazan las conexiones de base de datos. La capacidad del consumidor se obtiene mediante las particiones, los consumidores concurrentes y la persistencia set-based por lotes.
+
+Las lecturas y escrituras utilizan parámetros JDBC al invocar procedimientos PL/SQL; no se concatenan valores recibidos en sentencias SQL.
 
 ## Tecnologías
 
@@ -211,9 +218,10 @@ Las consultas a Oracle utilizan parámetros de JPA y no concatenan valores recib
 - Spring Boot 4.1.
 - Apache Kafka 4.3.
 - Oracle Free 23ai.
-- Spring Data JPA.
+- Oracle PL/SQL.
+- Spring JDBC.
 - Flyway.
-- Springdoc OpenAPI y Swagger UI.
+- springdoc-openapi y Swagger UI.
 - Maven Wrapper.
 - JUnit, Mockito y ArchUnit.
 - JaCoCo.
@@ -227,7 +235,7 @@ Con Java 21 instalado se puede ejecutar localmente:
 ./mvnw clean verify
 ```
 
-El mismo comando se ejecuta durante la construcción de la imagen Docker. El build ejecuta las pruebas unitarias, valida las dependencias entre las capas con ArchUnit y falla si la cobertura de líneas, branches, instrucciones o métodos queda por debajo del 80%.
+El mismo comando se ejecuta durante la construcción de la imagen Docker. Este proceso ejecuta las pruebas unitarias, valida las dependencias entre las capas con ArchUnit y falla si la cobertura de líneas, ramas, instrucciones o métodos queda por debajo del 80 %.
 
 El informe generado por JaCoCo queda disponible en:
 
@@ -243,7 +251,7 @@ Los logs de la API se consultan con:
 docker compose logs -f hotel-search-api
 ```
 
-Las operaciones principales registran el mismo `searchId`, lo que permite seguir una búsqueda desde su recepción HTTP hasta su publicación, consumo y persistencia.
+La aplicación no registra una línea por cada petición o mensaje procesado para evitar que la escritura de logs forme parte del camino crítico. Se conservan los logs de inicio, infraestructura y errores generados por Spring, Kafka, Flyway y Oracle.
 
 ## Detener o reiniciar el sistema
 

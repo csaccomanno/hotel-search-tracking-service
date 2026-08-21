@@ -1,10 +1,9 @@
 package com.riu.hotelsearch.application.service;
 
 import com.riu.hotelsearch.application.exception.SearchNotFoundException;
-import com.riu.hotelsearch.application.model.SearchCountResult;
 import com.riu.hotelsearch.application.port.in.CountSearchesUseCase;
-import com.riu.hotelsearch.application.port.out.SearchRepository;
-import com.riu.hotelsearch.domain.model.HotelSearch;
+import com.riu.hotelsearch.domain.model.SearchCountResult;
+import com.riu.hotelsearch.domain.port.out.SearchRepository;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
@@ -18,8 +17,7 @@ public final class CountSearchesService implements CountSearchesUseCase {
 
     @Override
     public SearchCountResult countBySearchId(UUID searchId) {
-        HotelSearch search = repository.findById(searchId)
+        return repository.findCountById(searchId)
                 .orElseThrow(() -> new SearchNotFoundException(searchId));
-        return new SearchCountResult(search, repository.countMatching(search.criteria()));
     }
 }

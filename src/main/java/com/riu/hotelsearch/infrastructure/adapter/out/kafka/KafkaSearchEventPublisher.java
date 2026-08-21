@@ -2,13 +2,12 @@ package com.riu.hotelsearch.infrastructure.adapter.out.kafka;
 
 import com.riu.hotelsearch.application.port.out.SearchEventPublisher;
 import com.riu.hotelsearch.domain.model.HotelSearch;
-import lombok.extern.slf4j.Slf4j;
+import com.riu.hotelsearch.infrastructure.messaging.kafka.SearchEventMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@Slf4j
 public class KafkaSearchEventPublisher implements SearchEventPublisher {
 
     private final KafkaTemplate<String, SearchEventMessage> kafkaTemplate;
@@ -29,6 +28,5 @@ public class KafkaSearchEventPublisher implements SearchEventPublisher {
                 search.criteria().checkOut(),
                 search.criteria().ages());
         kafkaTemplate.send(topic, search.searchId().toString(), message).join();
-        log.info("Hotel search event published searchId={} topic={}", search.searchId(), topic);
     }
 }
